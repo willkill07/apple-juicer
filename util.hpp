@@ -14,6 +14,12 @@ constexpr std::size_t kTrials{10};
 constexpr std::chrono::seconds kInitialDelayTime{10};
 constexpr std::chrono::seconds kPauseDelayTime{1};
 
+template <auto V> struct Value {};
+
+template <auto V, auto... Vs>
+  requires(... and std::same_as<decltype(V), decltype(Vs)>)
+struct Values {};
+
 template <typename T>
 constexpr std::string kLabel{
     std::array{"fp8", "fp16", "fp32", "fp64"}[std::countr_zero(sizeof(T))]};
@@ -23,7 +29,17 @@ struct TimeStat {
 
   constexpr TimeStat() noexcept = default;
 
-  constexpr TimeStat(ns time) noexcept : total{time}, min{time}, max{time} {}
+  template <typename Rep, typename Period>
+  constexpr TimeStat &
+  operator=(std::chrono::duration<Rep, Period> const &time) noexcept {
+    return *this = TimeStat{time};
+  }
+
+  template <typename Rep, typename Period>
+  constexpr TimeStat(std::chrono::duration<Rep, Period> const &time) noexcept
+      : total{std::chrono::duration_cast<ns>(time)},
+        min{std::chrono::duration_cast<ns>(time)},
+        max{std::chrono::duration_cast<ns>(time)} {}
 
   constexpr TimeStat &operator+=(TimeStat const &other) noexcept {
     total += other.total;
@@ -73,4 +89,29 @@ GetTotalMemoryBytes() noexcept {
   } else {
     return std::nullopt;
   }
+}
+
+[[nodiscard]] inline std::optional<std::string> GetCPUBrandString() noexcept {
+  char value[256];
+  size_t size = sizeof(value);
+  if (::sysctlbyname("machdep.cpu.brand_string", &value, &size, NULL, 0) < 0) {
+    return std::nullopt;
+  } else {
+    return std::string{value, size};
+  }
+}
+
+[[nodiscard]] inline std::optional<std::string> GetModel() noexcept {
+  char value[256];
+  size_t size = sizeof(value);
+  if (::sysctlbyname("hw.model", &value, &size, NULL, 0) < 0) {
+    return std::nullopt;
+  } else {
+    return std::string{value, size};
+  }
+}
+
+[[nodiscard]] inline std::optional<std::uint64_t>
+GetArmCapabilities() noexcept {
+  return SysctlByName<std::uint64_t>("hw.optional.arm.caps");
 }

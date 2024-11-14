@@ -34,15 +34,14 @@ template <typename Type> struct GemmData {
   Type beta;
 
   GemmData(std::size_t max_n)
-      : elems{max_n * max_n},
-        a{std::make_unique_for_overwrite<Type[]>(elems)},
+      : elems{max_n * max_n}, a{std::make_unique_for_overwrite<Type[]>(elems)},
         b{std::make_unique_for_overwrite<Type[]>(elems)},
         c{std::make_unique_for_overwrite<Type[]>(elems)} {
-    auto gen = [] {
+    auto gen{[] {
       static std::minstd_rand rng{std::random_device{}()};
       static std::uniform_real_distribution<Type> dist(-1, 1);
       return dist(rng);
-    };
+    }};
     alpha = gen();
     beta = gen();
     std::ranges::generate_n(a.get(), elems, gen);
@@ -80,19 +79,19 @@ template <typename T>
   return res;
 }
 
-template <typename T, typename Clock>
-void Trial(std::size_t max_clusters, std::size_t mem_limit) {
+template <typename T>
+void Trial(std::size_t total_clusters, std::size_t mem_limit) {
 
-  std::vector const sizes = GenerateSizes<T>(mem_limit);
+  std::vector const sizes{GenerateSizes<T>(mem_limit)};
 
   std::vector<GemmData<T>> datas;
-  for (std::size_t i = 0; i < max_clusters; ++i) {
+  for (std::size_t i{0}; i < total_clusters; ++i) {
     datas.emplace_back(sizes.back());
   }
 
-  std::println("datatype,clusters,size,sustained,fastest,slowest");
+  std::println("datatype,clusters,size,average,minimum,maximum");
 
-  for (std::size_t clusters = 1uz; clusters <= max_clusters; ++clusters) {
+  for (std::size_t clusters{1}; clusters <= total_clusters; ++clusters) {
 
     std::barrier<> sync(clusters);
     std::vector<std::thread> threads;
@@ -101,7 +100,7 @@ void Trial(std::size_t max_clusters, std::size_t mem_limit) {
     std::atomic_size_t index{0};
     std::atomic<TimeStat> stat{};
 
-    for (std::size_t tid = 0uz; tid < clusters; ++tid) {
+    for (std::size_t tid{0}; tid < clusters; ++tid) {
       threads.emplace_back([&, tid] {
         std::this_thread::sleep_for(kInitialDelayTime);
 
@@ -113,11 +112,11 @@ void Trial(std::size_t max_clusters, std::size_t mem_limit) {
           sync.arrive_and_wait();
 
           while (true) {
-            if (std::size_t i = index.fetch_add(1); i < kTrials * clusters) {
+            if (std::size_t i{index.fetch_add(1)}; i < kTrials * clusters) {
               i %= clusters;
-              auto const start = Clock::now();
+              auto const start{Clock::now()};
               Gemm(datas[i], n);
-              auto const stop = Clock::now();
+              auto const stop{Clock::now()};
               local_stat += TimeStat{stop - start};
             } else {
               break;
@@ -126,7 +125,7 @@ void Trial(std::size_t max_clusters, std::size_t mem_limit) {
 
           // atomic update
           {
-            TimeStat curr = stat.load(std::memory_order_relaxed);
+            TimeStat curr{stat.load(std::memory_order_relaxed)};
             while (!stat.compare_exchange_weak(curr, curr + local_stat,
                                                std::memory_order_release,
                                                std::memory_order_relaxed))
@@ -142,8 +141,8 @@ void Trial(std::size_t max_clusters, std::size_t mem_limit) {
             std::println("{},{},{},{:0.3f},{:0.3f},{:0.3f}",    //
                          kLabel<T>, clusters, n,                //
                          total_ops / stat.load().total.count(), //
-                         ops / stat.load().min.count(),         //
-                         ops / stat.load().max.count());
+                         ops / stat.load().max.count(),         //
+                         ops / stat.load().min.count());
 
             // reset all atomics to their initial values
             index.store(0);
@@ -161,24 +160,28 @@ void Trial(std::size_t max_clusters, std::size_t mem_limit) {
 
 int main() {
 
-  auto const mem_total = GetTotalMemoryBytes();
-  if (not mem_total) {
+  std::optional const memory{GetTotalMemoryBytes()};
+  std::optional const cores{GetTotalCPUCount()};
+  std::optional const brand{GetCPUBrandString()};
+  std::optional const caps{GetArmCapabilities()};
+  std::optional const model{GetModel()};
+  std::optional const clusters{GetTotalCPUClusters()};
+  if (not(memory and cores and brand and caps and model and clusters)) {
     return EXIT_FAILURE;
   }
-
-  auto const clusters = GetTotalCPUClusters();
-  if (not clusters) {
-    return EXIT_FAILURE;
-  }
-
-  std::println("Memory detected: {} GiB", *mem_total / kGiB);
+  std::println("Model: {}", *model);
+  std::println("Brand: {}", *brand);
+  std::println("CPU cores detected: {}", *cores);
+  std::println("Capabilities: {:064b}", *caps);
+  std::println("Memory detected: {} GiB", *memory / kGiB);
   std::println("CPU clusters detected: {}", *clusters);
 
-  std::size_t const mem_limit = kMemoryUsageFactor * *mem_total / *clusters;
+  std::size_t const mem_limit(kMemoryUsageFactor * *memory / *clusters);
+  std::println("");
   std::println(
       "Allowing total memory allocations per cluster to add to: {} GiB\n",
       mem_limit / kGiB);
 
-  Trial<float, Clock>(*clusters, mem_limit);
-  Trial<double, Clock>(*clusters, mem_limit);
+  Trial<float>(*clusters, mem_limit);
+  Trial<double>(*clusters, mem_limit);
 }
