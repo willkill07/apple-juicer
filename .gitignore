@@ -1,2 +1,3 @@
 gemm
 stream
+*.o

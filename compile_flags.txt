@@ -2,8 +2,10 @@
 -Wextra
 -Werror
 -std=c++2b
+-fexperimental-library
 -O3
 -march=native
+-I./include
 -I/opt/homebrew/opt/libomp/include
 -L/opt/homebrew/opt/libomp/lib
 -lomp
