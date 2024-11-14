@@ -1,0 +1,9 @@
+-Wall
+-Wextra
+-Werror
+-std=c++2b
+-O3
+-march=native
+-I/opt/homebrew/opt/libomp/include
+-L/opt/homebrew/opt/libomp/lib
+-lomp
