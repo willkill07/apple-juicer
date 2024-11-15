@@ -10,14 +10,17 @@
 
 class PowerReader {
 public:
-  ~PowerReader() { stop_source.request_stop(); }
+  inline ~PowerReader() {
+    stop_source.request_stop();
+    runner.join();
+  }
 
-  void Start() {
+  inline void Start() {
     std::unique_lock lock{mutex};
     times.clear();
   }
 
-  [[nodiscard]] float Stop() {
+  [[nodiscard]] inline float Stop() {
     static std::vector<float> copy;
     {
       std::unique_lock lock{mutex};
@@ -34,7 +37,7 @@ public:
   }
 
 private:
-  void Updater() {
+  inline void Updater() {
     std::this_thread::sleep_for(std::chrono::milliseconds{500});
     while (not stop_source.stop_requested()) {
       smc->ReadVal<float>("PSTR").transform([this](float w) {
