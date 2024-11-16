@@ -1,0 +1,5 @@
+If:
+  PathMatch: .*\.[hc]pp
+
+CompileFlags:
+  Add: [-Wall, -Wextra, -Werror, -std=c++23, -fexperimental-library, -I./include, -I/opt/homebrew/opt/libomp/include]
