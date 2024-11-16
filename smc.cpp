@@ -6,6 +6,17 @@
 #include <IOKit/IOKitLib.h>
 #include <IOKit/IOTypes.h>
 
+KeyData::KeyData(unsigned char data8, Key key, KeyInfo key_info) noexcept
+    : key{std::move(key)}, key_info{std::move(key_info)},
+      data8{std::move(data8)} {
+  std::memset(bytes, 0, sizeof(bytes));
+}
+
+KeyData::KeyData(unsigned char data8, Key key) noexcept
+    : KeyData{std::move(data8), std::move(key), {}} {}
+
+KeyData::KeyData() noexcept : KeyData({}, {}) {}
+
 SMC::SMC(Connection conn) noexcept : conn{conn} {}
 
 std::optional<SMC> SMC::Make() noexcept {
@@ -36,7 +47,7 @@ std::optional<Connection> SMC::GetConnection() noexcept {
   return std::nullopt;
 }
 
-[[nodiscard]] std::optional<KeyData> SMC::ReadValRaw(std::string_view v) {
+std::optional<KeyData> SMC::ReadValRaw(std::string_view v) {
   if (v.size() != 4) {
     return std::nullopt;
   }
@@ -48,8 +59,7 @@ std::optional<Connection> SMC::GetConnection() noexcept {
   });
 }
 
-[[nodiscard]] std::optional<KeyData>
-SMC::Read(KeyData const &input) const noexcept {
+std::optional<KeyData> SMC::Read(KeyData const &input) const noexcept {
   KeyData output;
   size_t len{sizeof(KeyData)};
   kern_return_t res = IOConnectCallStructMethod(conn, 2, &input,
@@ -69,14 +79,3 @@ std::optional<KeyInfo> SMC::ReadKeyInfo(Key key) {
     return map.emplace(key, d.key_info).first->second;
   });
 }
-
-KeyData::KeyData(unsigned char data8, Key key, KeyInfo key_info) noexcept
-    : key{std::move(key)}, key_info{std::move(key_info)},
-      data8{std::move(data8)} {
-  std::memset(bytes, 0, sizeof(bytes));
-}
-
-KeyData::KeyData(unsigned char data8, Key key) noexcept
-    : KeyData{std::move(data8), std::move(key), {}} {}
-
-KeyData::KeyData() noexcept : KeyData({}, {}) {}

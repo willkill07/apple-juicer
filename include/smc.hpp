@@ -68,7 +68,7 @@ class SMC {
   [[nodiscard]] std::optional<KeyData>
   Read(KeyData const &input) const noexcept;
 
-  std::optional<KeyInfo> ReadKeyInfo(Key key);
+  [[nodiscard]] std::optional<KeyInfo> ReadKeyInfo(Key key);
 
   [[nodiscard]] std::optional<KeyData> ReadValRaw(std::string_view v);
 
