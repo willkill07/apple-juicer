@@ -42,8 +42,9 @@ void Trial(std::size_t trials, std::int64_t mem_limit,
       std::ranges::transform(
           stats,
           std::views::zip(std::views::drop(times, 1), times) |
-              std::views::transform(
-                  [](auto const &p) { return std::apply(std::minus{}, p); }),
+              std::views::transform([](auto&& p) { //
+                return std::apply(std::minus{}, p);
+              }),
           stats.begin(), std::plus{});
     }
 
@@ -80,8 +81,7 @@ int main() {
   std::println("Memory detected: {} GiB", *memory / kGiB);
 
   std::size_t const mem_limit(*memory * kMemoryUsageFactor / kNumArrays);
-  std::println("");
-  std::println("Allowing total memory allocations per array to be: {} GiB\n",
+  std::println("\nAllowing total memory allocations per array to be: {} GiB\n",
                mem_limit / kGiB);
 
   std::println("datatype,threads,function,average,minimum,maximum");

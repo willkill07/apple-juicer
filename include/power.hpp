@@ -10,10 +10,9 @@
 
 class PowerReader {
 public:
-  inline ~PowerReader() {
-    stop_source.request_stop();
-    runner.join();
-  }
+  inline PowerReader() : runner{std::bind_front(&PowerReader::Update, this)} {}
+
+  inline ~PowerReader() { runner.request_stop(); }
 
   inline void Start() {
     std::unique_lock lock{mutex};
@@ -21,39 +20,34 @@ public:
   }
 
   [[nodiscard]] inline float Stop() {
-    static std::vector<float> copy;
-    {
-      std::unique_lock lock{mutex};
-      copy.assign_range(times);
+    std::unique_lock lock{mutex};
+    if (times.empty()) {
+      return last;
+    } else {
+      float const time{std::ranges::fold_left(times, 0.0f, std::plus{}) / times.size()};
       times.clear();
+      return time;
     }
-    return [this] {
-      if (copy.empty()) {
-        return last.load();
-      } else {
-        return std::ranges::fold_left(copy, 0.0f, std::plus{}) / copy.size();
-      }
-    }();
   }
 
 private:
-  inline void Updater() {
+  void Update(std::stop_token token) {
     std::this_thread::sleep_for(std::chrono::milliseconds{500});
-    while (not stop_source.stop_requested()) {
-      smc->ReadVal<float>("PSTR").transform([this](float w) {
-        last.store(w);
+    while (not token.stop_requested()) {
+      if (auto watts = smc->ReadVal<float>("PSTR"); watts) {
         std::unique_lock lock{mutex};
-        times.push_back(w);
-        return w;
-      });
+        last = *watts;
+        times.push_back(*watts);
+      }
       std::this_thread::sleep_for(std::chrono::seconds{1});
     }
   }
 
   std::optional<SMC> smc{SMC::Make()};
+
   std::mutex mutex;
   std::vector<float> times;
-  std::atomic<float> last{0.0f};
-  std::stop_source stop_source;
-  std::thread runner{std::mem_fn(&PowerReader::Updater), this};
+  float last{0.0f};
+
+  std::jthread runner;
 };
